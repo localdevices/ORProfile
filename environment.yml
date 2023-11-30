@@ -1,0 +1,25 @@
+name: orprofile
+
+channels:
+  - conda-forge
+
+dependencies:
+  - cartopy
+  - dask
+  - descartes
+  - geopandas
+  - jupyter
+  - netcdf4
+  - matplotlib # to run examples
+  - nc-time-axis
+  - numba
+  - numpy
+  - pandas
+  - pip
+  - pygeos
+  - python<3.12  # in case we need hydromt_delft3dfm. This is not yet for 3.11
+  - rasterio
+  - requests
+  - scipy
+  - xarray
+
