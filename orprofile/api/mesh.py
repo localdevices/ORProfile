@@ -2,9 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-import geopandas as gpd
 import cartopy.io.img_tiles as cimgt
 import cartopy.crs as ccrs
+import geopandas as gpd
+from shapely.geometry import Point
 
 from meshkernel import (
     CurvilinearParameters,
@@ -14,6 +15,7 @@ from meshkernel import (
     SplinesToCurvilinearParameters,
     OrthogonalizationParameters
 )
+from xugrid import Ugrid2d
 
 class Mesh(object):
     def __init__(
@@ -21,14 +23,29 @@ class Mesh(object):
             spline_shape: gpd.GeoDataFrame,
             n=10,
             m=10,
+            points=None
     ):
         self.n = n
         self.m = m
         self.splines = spline_shape
+        if points is not None:
+            self.points = points
 
     @property
     def crs(self):
         return self.splines.crs
+
+    @property
+    def points(self):
+        if hasattr(self, "_points"):
+            return self._points
+
+    @points.setter
+    def points(self, gdf):
+        if isinstance(gdf, gpd.GeoDataFrame):
+            self._points = gdf
+        else:
+            self.read_points(gdf)
 
     @property
     def splines(self):
@@ -101,14 +118,27 @@ class Mesh(object):
             ax = plt.subplot(projection=crs)
         if extent is not None:
             ax.set_extent(extent, crs=ccrs.PlateCarree())
+        m = self.mesh2d.to_crs(crs.to_wkt())
+        m.plot(ax=ax, label="mesh", zorder=2)
         if tiles is not None:
             ax.add_image(tiler, zoom_level, zorder=1)
         # now add the gdf
-        gdf = self.splines.to_crs(4326)
-        self.mesh_kernel.plot_edges(ax, color="r", transform=ccrs.epsg(self.splines.crs.to_epsg()))
-        self.splines.plot(ax=ax, transform=ccrs.epsg(self.splines.crs.to_epsg()), zorder=2)
+        # self.mesh_kernel.plot_edges(ax, color="r", transform=ccrs.epsg(self.splines.crs.to_epsg()), label="mesh edges")
+        self.splines.plot(ax=ax, transform=ccrs.epsg(self.splines.crs.to_epsg()), zorder=2, color="c", linewidth=2., label="splines")
+        if self.points is not None:
+            self.points.plot(
+                ax=ax,
+                transform=ccrs.epsg(self.splines.crs.to_epsg()),
+                zorder=2,
+                color="g",
+                marker="o",
+                markersize=10,
+                edgecolor="w",
+                label="sonar survey"
+            )
 
         # ax.add_geometries(gdf["geometry"], crs=ccrs.PlateCarree())
+        ax.legend()
         return ax
 
     @property
@@ -120,10 +150,41 @@ class Mesh(object):
         mk.curvilinear_compute_transfinite_from_splines(
             self.splines_mesh, curvilinear_parameters
         )
-        return mk.curvilineargrid_get()
+        mk.curvilinear_convert_to_mesh2d()  #.curvilineargrid_get()
+        return mk
 
-    # def plot(self, ax=None):
-    #     if ax is None:
-    #         fig, ax = plt.subplots(subplot_kw={"projection": crs})
-    #     self.mesh_kernel.plot_edges(ax)
 
+    @property
+    def mesh2d(self):
+        grid = self.mesh_kernel.mesh2d_get()
+        return Ugrid2d.from_meshkernel(grid, crs=self.crs)
+
+
+
+    def read_points(self, fn, crs=None):
+        """
+        Read a set of surveyed points. These should be contained in the point geometry of the read file
+
+        Parameters
+        ----------
+        fn
+
+        Returns
+        -------
+
+        """
+        gdf = gpd.read_file(fn)
+        # check if all geometries are points
+        assert(
+            all(
+                [isinstance(geom, Point) for geom in gdf.geometry]
+            )
+        ), f'shapefile may only contain geometries of type "Point"'
+        if not(hasattr(gdf, "crs")):
+            if crs is None:
+                raise ValueError(
+                    "a CRS must be provided either within the provided point geomtry file or explicitly "
+                    "through `crs=`"
+                )
+            gdf.set_crs(crs)
+        self.points = gdf
