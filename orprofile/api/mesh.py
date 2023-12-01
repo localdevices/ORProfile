@@ -3,6 +3,8 @@ import numpy as np
 import os
 
 import geopandas as gpd
+import cartopy.io.img_tiles as cimgt
+import cartopy.crs as ccrs
 
 from meshkernel import (
     CurvilinearParameters,
@@ -23,6 +25,10 @@ class Mesh(object):
         self.n = n
         self.m = m
         self.splines = spline_shape
+
+    @property
+    def crs(self):
+        return self.splines.crs
 
     @property
     def splines(self):
@@ -60,7 +66,7 @@ class Mesh(object):
                     splines_y += list(geom.xy[1])
                 else:
                     splines_x += [separator] + list(geom.xy[0])
-                    splines_y += [separator] + list(geom.xy[0])
+                    splines_y += [separator] + list(geom.xy[1])
 
             # splines_x = np.array([2.0, 4.0, 7.0, separator,
             #                       -1.0, 1.0, 5.0, separator,
@@ -77,8 +83,33 @@ class Mesh(object):
             print("Splines are not crossing each other properly, ensure each spline crosses at least 2 other splines")
 
         raise NotImplementedError
-        def plot(ax=None):
-            raise NotImplementedError
+    def plot(
+            self,
+            ax=None,
+            tiles="GoogleTiles",
+            extent=None,
+            zoom_level=18,
+            tiles_kwargs={"style": "satellite"},
+            **kwargs
+    ):
+        if tiles is not None:
+            tiler = getattr(cimgt, tiles)(**tiles_kwargs)
+            crs = tiler.crs
+        else:
+            crs = ccrs.PlateCarree()
+        if ax is None:
+            ax = plt.subplot(projection=crs)
+        if extent is not None:
+            ax.set_extent(extent, crs=ccrs.PlateCarree())
+        if tiles is not None:
+            ax.add_image(tiler, zoom_level, zorder=1)
+        # now add the gdf
+        gdf = self.splines.to_crs(4326)
+        self.mesh_kernel.plot_edges(ax, color="r", transform=ccrs.epsg(self.splines.crs.to_epsg()))
+        self.splines.plot(ax=ax, transform=ccrs.epsg(self.splines.crs.to_epsg()), zorder=2)
+
+        # ax.add_geometries(gdf["geometry"], crs=ccrs.PlateCarree())
+        return ax
 
     @property
     def mesh_kernel(self):
@@ -91,8 +122,8 @@ class Mesh(object):
         )
         return mk.curvilineargrid_get()
 
-    def plot(self, ax=None):
-        if ax is None:
-            f, ax = plt.subplots()
-        self.mesh_kernel.plot_edges(ax)
+    # def plot(self, ax=None):
+    #     if ax is None:
+    #         fig, ax = plt.subplots(subplot_kw={"projection": crs})
+    #     self.mesh_kernel.plot_edges(ax)
 

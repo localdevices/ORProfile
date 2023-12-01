@@ -2,6 +2,7 @@ import os
 from pytest import fixture
 
 import geopandas as gpd
+import pandas as pd
 
 EXAMPLE_DATA_DIR = os.path.join(
     os.path.split(__file__)[0], "..", "examples", "data"
@@ -18,6 +19,7 @@ def fn_splines():
 def splines(fn_splines):
     # read geojson in memory and return
     gdf = gpd.read_file(fn_splines)
+    # gdf = gpd.GeoDataFrame(pd.concat([gdf.iloc[0], gdf.iloc[3], gdf.iloc[1], gdf.iloc[2]], axis=1).T)
     return gdf
 
 # @fixture
