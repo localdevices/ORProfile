@@ -84,15 +84,7 @@ class Mesh(object):
                 else:
                     splines_x += [separator] + list(geom.xy[0])
                     splines_y += [separator] + list(geom.xy[1])
-
-            # splines_x = np.array([2.0, 4.0, 7.0, separator,
-            #                       -1.0, 1.0, 5.0, separator,
-            #                       3.0, -2.0, separator,
-            #                       7.0, 4.0], dtype=np.double)
-            # splines_y = np.array([1.0, 3.0, 4.0, separator,
-            #                       4.0, 6.0, 7.0, separator,
-            #                       1.0, 6.0, separator,
-            #                       3.0, 8.0], dtype=np.double)
+            # convert into 64-bit floats (needed for kernel)
             splines_x = np.float64(splines_x)
             splines_y = np.float64(splines_y)
             return GeometryList(splines_x, splines_y)
@@ -127,14 +119,16 @@ class Mesh(object):
         self.splines.plot(ax=ax, transform=ccrs.epsg(self.splines.crs.to_epsg()), zorder=2, color="c", linewidth=2., label="splines")
         if self.points is not None:
             self.points.plot(
+                column="depth",
                 ax=ax,
                 transform=ccrs.epsg(self.splines.crs.to_epsg()),
                 zorder=2,
-                color="g",
-                marker="o",
-                markersize=10,
-                edgecolor="w",
-                label="sonar survey"
+                # color=self.points.geometry.z,
+                marker="+",
+                markersize=30,
+                # edgecolor="w",
+                label="sonar survey",
+                legend=True
             )
 
         # ax.add_geometries(gdf["geometry"], crs=ccrs.PlateCarree())
@@ -187,4 +181,5 @@ class Mesh(object):
                     "through `crs=`"
                 )
             gdf.set_crs(crs)
+        gdf["depth"] = gdf.geometry.z
         self.points = gdf
