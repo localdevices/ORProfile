@@ -31,6 +31,19 @@ class Mesh(object):
         if points is not None:
             self.points = points
 
+    def __repr__(self):
+        info = {
+            "n": self.n,
+            "m": self.m,
+            "crs": self.crs,
+            "points head": None if self.points is None else self.points["geometry"].head()
+        }
+        info_str = ""
+        for k, v in info.items():
+            info_str += f"{k}: {v}\n"
+        return info_str
+
+
     @property
     def crs(self):
         return self.splines.crs
