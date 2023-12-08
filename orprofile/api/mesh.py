@@ -60,6 +60,13 @@ class Mesh(object):
 
     @property
     def points(self):
+        """
+
+        Returns
+        -------
+        gpd.GeoDataFrame
+            loaded sonar survey points
+        """
         if hasattr(self, "_points"):
             return self._points
 
@@ -72,6 +79,13 @@ class Mesh(object):
 
     @property
     def splines(self):
+        """
+
+        Returns
+        -------
+        gpd.GeoDataFrame
+            4 splines defining the area ob interest (2 along banks and 2 perpendicular to river
+        """
         return self._splines
 
     @splines.setter
@@ -95,6 +109,12 @@ class Mesh(object):
 
     @property
     def splines_mesh(self):
+        """
+
+        Returns
+        -------
+        A GeometryList that can be used to construct a mesh in meshkernel
+        """
         if self._is_splines_crossing:
             separator = -999.0
             # loop over geometry and make a meshkernel compatible GeometryList object
@@ -117,6 +137,13 @@ class Mesh(object):
 
     @property
     def mesh_kernel(self):
+        """
+
+        Returns
+        -------
+        meshkernel.MeshKernel
+            contains the curvilinear grid based on defined splines and row/column parameters
+        """
         mk = MeshKernel()
         curvilinear_parameters = CurvilinearParameters()
         curvilinear_parameters.n_refinement = self.n
@@ -130,6 +157,12 @@ class Mesh(object):
 
     @property
     def mesh2d(self):
+        """
+
+        Returns
+        -------
+        xu compatible 2D grid
+        """
         grid = self.mesh_kernel.mesh2d_get()
         return xu.Ugrid2d.from_meshkernel(grid, crs=self.crs)
 
@@ -141,8 +174,30 @@ class Mesh(object):
             extent=None,
             zoom_level=18,
             tiles_kwargs={"style": "satellite"},
-            **kwargs
+            splines_kw={},
+            points_kw={}
     ):
+        """
+        Plot available data in a geographically aware plot (cartopy)
+
+        Parameters
+        ----------
+        ax : plt.Axes, optional
+            pre-defined axes (if required)
+        tiles : str,
+            cartopy.io.img_tiler submethod tiles set name to use as background (default: GoogleTiles)
+        extent : list[float],
+            extent as xmin, xmax, ymin, ymax to reduce the image to
+        zoom_level : int, optional
+            zoom level to use for tiles set (default: 18)
+        tiles_kwargs : dict, optional
+            kwargs to pass to cartopy.io.img_tiler.<tiles>. Default: {"style": "satellite"}
+        kwargs
+
+        Returns
+        -------
+
+        """
         if tiles is not None:
             tiler = getattr(cimgt, tiles)(**tiles_kwargs)
             crs = tiler.crs
@@ -158,7 +213,15 @@ class Mesh(object):
             ax.add_image(tiler, zoom_level, zorder=1)
         # now add the gdf
         # self.mesh_kernel.plot_edges(ax, color="r", transform=ccrs.epsg(self.splines.crs.to_epsg()), label="mesh edges")
-        self.splines.plot(ax=ax, transform=ccrs.epsg(self.splines.crs.to_epsg()), zorder=2, color="c", linewidth=2., label="splines")
+        self.splines.plot(
+            ax=ax,
+            transform=ccrs.epsg(self.splines.crs.to_epsg()),
+            zorder=2,
+            color="c",
+            linewidth=2.,
+            label="splines",
+            **splines_kw
+        )
         if self.points is not None:
             self.points.plot(
                 column="depth",
@@ -168,7 +231,8 @@ class Mesh(object):
                 marker="+",
                 markersize=30,
                 label="sonar survey",
-                legend=True
+                legend=True,
+                **points_kw
             )
         ax.legend()
         return ax
@@ -176,6 +240,7 @@ class Mesh(object):
 
     def _get_empty_ds(self):
         """
+        make an empty template for a xu.UgridDataset with a underlying unstructured grid
 
         Returns
         -------
@@ -207,19 +272,28 @@ class Mesh(object):
         ds = xu.UgridDataset(grids=self.mesh2d)
         ds.coords["rows"] = da_rows
         ds.coords["cols"] = da_cols
-        # ds.coords["node_x"] = (mesh.mesh2d.face_dimension, mesh.mesh2d.node_x)
-        # ds.coords["node_y"] = (mesh.mesh2d.face_dimension, mesh.mesh2d.node_y)
         ds["rows"] = da_rows
         ds["cols"] = da_cols
         return ds
 
     def map_rowwise(self, func, name="new_var", **kwargs):
         """
-        Map a function over each column
+        Map a 1D function over each row in the defined mesh object
+        under self.mesh2d. Output is returned with the mesh intelligence
+        as xu.UgridDataArray object.
+
+        Parameters
+        ----------
+        func : def
+            function to map over
+        name : str, optional
+            name of output xr.DataArray object
+        kwargs
+            : keyword arguments to pass to func
 
         Returns
         -------
-        ds : xu.UgridDataset or xu.UgridDataArray object
+        da : xu.UgridDataArray object
 
         """
 
@@ -245,10 +319,10 @@ class Mesh(object):
 
         Parameters
         ----------
-        fn
-
-        Returns
-        -------
+        fn : str, path-like,
+            geopandas compatible geographic vector file (e.g. GeoJSON)
+        crs : str, int, optional
+            coordinate reference system, can be anything that can be interpreted by pyproj.CRS.from_user_input
 
         """
         gdf = gpd.read_file(fn)
