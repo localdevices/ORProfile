@@ -9,13 +9,23 @@ from shapely.geometry import Point
 
 from meshkernel import (
     CurvilinearParameters,
-    MakeGridParameters,
     GeometryList,
     MeshKernel,
-    SplinesToCurvilinearParameters,
-    OrthogonalizationParameters
 )
-from xugrid import Ugrid2d
+import xarray as xr
+import xugrid as xu
+
+__all__ = ["Mesh"]
+
+def _map_func(row, f, ugrid, name="new", **kwargs):
+    grid_sel = ugrid.isel(mesh2d_nFaces=row.mesh2d_nFaces.values)
+    row_ug = xu.UgridDataset(row, grids=grid_sel)
+    # now apply the function
+    result = f(row_ug, **kwargs)
+    result.name = name
+    return result
+
+# specific function that computes something. This can be made by the user and applied
 
 class Mesh(object):
     def __init__(
@@ -104,7 +114,26 @@ class Mesh(object):
         else:
             print("Splines are not crossing each other properly, ensure each spline crosses at least 2 other splines")
 
-        raise NotImplementedError
+
+    @property
+    def mesh_kernel(self):
+        mk = MeshKernel()
+        curvilinear_parameters = CurvilinearParameters()
+        curvilinear_parameters.n_refinement = self.n
+        curvilinear_parameters.m_refinement = self.m
+        mk.curvilinear_compute_transfinite_from_splines(
+            self.splines_mesh, curvilinear_parameters
+        )
+        mk.curvilinear_convert_to_mesh2d()  #.curvilineargrid_get()
+        return mk
+
+
+    @property
+    def mesh2d(self):
+        grid = self.mesh_kernel.mesh2d_get()
+        return xu.Ugrid2d.from_meshkernel(grid, crs=self.crs)
+
+
     def plot(
             self,
             ax=None,
@@ -136,36 +165,78 @@ class Mesh(object):
                 ax=ax,
                 transform=ccrs.epsg(self.splines.crs.to_epsg()),
                 zorder=2,
-                # color=self.points.geometry.z,
                 marker="+",
                 markersize=30,
-                # edgecolor="w",
                 label="sonar survey",
                 legend=True
             )
-
-        # ax.add_geometries(gdf["geometry"], crs=ccrs.PlateCarree())
         ax.legend()
         return ax
 
-    @property
-    def mesh_kernel(self):
-        mk = MeshKernel()
-        curvilinear_parameters = CurvilinearParameters()
-        curvilinear_parameters.n_refinement = self.n
-        curvilinear_parameters.m_refinement = self.m
-        mk.curvilinear_compute_transfinite_from_splines(
-            self.splines_mesh, curvilinear_parameters
+
+    def _get_empty_ds(self):
+        """
+
+        Returns
+        -------
+        ds : xu.UgridDataset or xu.UgridDataArray object
+
+        """
+
+        # make a columns and row coordinate for each node
+        columns = np.repeat([np.arange(self.n)], self.m, axis=0).flatten()
+        rows = np.repeat(np.arange(self.m), self.n)
+
+        # prepare UgridDataArrays, using the grid
+        da_rows = xu.UgridDataArray(
+            xr.DataArray(
+                data=rows,
+                dims=[self.mesh2d.face_dimension]
+            ),
+            grid=self.mesh2d,
         )
-        mk.curvilinear_convert_to_mesh2d()  #.curvilineargrid_get()
-        return mk
+        da_cols = xu.UgridDataArray(
+            xr.DataArray(
+                data=columns,
+                dims=[self.mesh2d.face_dimension]
+            ),
+            grid=self.mesh2d,
+        )
 
+        # combine everything into a UgridDataSet
+        ds = xu.UgridDataset(grids=self.mesh2d)
+        ds.coords["rows"] = da_rows
+        ds.coords["cols"] = da_cols
+        # ds.coords["node_x"] = (mesh.mesh2d.face_dimension, mesh.mesh2d.node_x)
+        # ds.coords["node_y"] = (mesh.mesh2d.face_dimension, mesh.mesh2d.node_y)
+        ds["rows"] = da_rows
+        ds["cols"] = da_cols
+        return ds
 
-    @property
-    def mesh2d(self):
-        grid = self.mesh_kernel.mesh2d_get()
-        return Ugrid2d.from_meshkernel(grid, crs=self.crs)
+    def map_rowwise(self, func, name="new_var", **kwargs):
+        """
+        Map a function over each column
 
+        Returns
+        -------
+        ds : xu.UgridDataset or xu.UgridDataArray object
+
+        """
+
+        # create an empty ds with grid properties
+        ds = self._get_empty_ds()
+        ds_g = ds.groupby("rows")
+        da = ds_g.map(
+            _map_func,
+            f=func,
+            name=name,
+            ugrid=self.mesh2d,
+            **kwargs
+        )
+        return xu.UgridDataArray(
+            da,
+            grid=self.mesh2d
+        )
 
 
     def read_points(self, fn, crs=None):
