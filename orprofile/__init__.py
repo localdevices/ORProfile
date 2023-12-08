@@ -3,3 +3,4 @@
 __version__ = "0.1.0.dev"
 
 from . import api
+from . import profile
