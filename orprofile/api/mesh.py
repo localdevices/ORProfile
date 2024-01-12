@@ -17,7 +17,33 @@ import xugrid as xu
 
 __all__ = ["Mesh"]
 
-def _map_func(row, f, ugrid, name="new", **kwargs):
+def get_dist(row):
+    # get the centroid coordinates of each face
+    x = row.ugrid.to_geodataframe().centroid.x
+    y = row.ugrid.to_geodataframe().centroid.y
+    # compute the difference in distance per grid cell from one bank to the other
+    ds = (np.diff(x)**2 + np.diff(y)**2)**0.5
+    # distance from bank
+    s = np.cumsum(np.pad(ds, (1, 0), "constant"))
+    # use the "cols" variable as a template
+    return xr.DataArray(s, coords=row.coords)
+
+def get_xi(mesh):
+    return mesh.map_rowcol_wise(
+        get_dist,
+        name="xi",
+        rowcol="rows"
+    )
+
+def get_yi(mesh):
+    return mesh.map_rowcol_wise(
+        get_dist,
+        name="yi",
+        rowcol="cols"
+    )
+
+
+def map_func(row, f, ugrid, name="new", **kwargs):
     grid_sel = ugrid.isel(mesh2d_nFaces=row.mesh2d_nFaces.values)
     row_ug = xu.UgridDataset(row, grids=grid_sel)
     # now apply the function
@@ -84,7 +110,7 @@ class Mesh(object):
         Returns
         -------
         gpd.GeoDataFrame
-            4 splines defining the area ob interest (2 along banks and 2 perpendicular to river
+            4 splines defining the area of interest (2 along banks and 2 perpendicular to river
         """
         return self._splines
 
@@ -175,7 +201,8 @@ class Mesh(object):
             zoom_level=18,
             tiles_kwargs={"style": "satellite"},
             splines_kw={},
-            points_kw={}
+            points_kw={},
+            plot_points=True
     ):
         """
         Plot available data in a geographically aware plot (cartopy)
@@ -208,7 +235,7 @@ class Mesh(object):
         if extent is not None:
             ax.set_extent(extent, crs=ccrs.PlateCarree())
         m = self.mesh2d.to_crs(crs.to_wkt())
-        m.plot(ax=ax, label="mesh", zorder=2)
+        m.plot(ax=ax, label="mesh", zorder=2, alpha=0.5)
         if tiles is not None:
             ax.add_image(tiler, zoom_level, zorder=1)
         # now add the gdf
@@ -222,7 +249,7 @@ class Mesh(object):
             label="splines",
             **splines_kw
         )
-        if self.points is not None:
+        if self.points is not None and plot_points:
             self.points.plot(
                 column="depth",
                 ax=ax,
@@ -249,8 +276,8 @@ class Mesh(object):
         """
 
         # make a columns and row coordinate for each node
-        columns = np.repeat([np.arange(self.n)], self.m, axis=0).flatten()
-        rows = np.repeat(np.arange(self.m), self.n)
+        rows = np.repeat([np.arange(self.n)], self.m, axis=0).flatten()
+        columns = np.repeat(np.arange(self.m), self.n)
 
         # prepare UgridDataArrays, using the grid
         da_rows = xu.UgridDataArray(
@@ -274,9 +301,29 @@ class Mesh(object):
         ds.coords["cols"] = da_cols
         ds["rows"] = da_rows
         ds["cols"] = da_cols
+
+
         return ds
 
-    def map_rowwise(self, func, name="new_var", **kwargs):
+
+    def _get_index_da(self):
+        """
+        Retrieve a xu.UgridDataArray with the index as data
+
+        Returns
+        -------
+
+        """
+
+        return xu.UgridDataArray(
+            xr.DataArray(
+                data=self.mesh2d.to_dataset()["mesh2d_nFaces"],
+                dims=[self.mesh2d.face_dimension]
+            ),
+            grid=self.mesh2d,
+        )
+
+    def map_rowcol_wise(self, func, name="new_var", rowcol="rows", **kwargs):
         """
         Map a 1D function over each row in the defined mesh object
         under self.mesh2d. Output is returned with the mesh intelligence
@@ -299,9 +346,9 @@ class Mesh(object):
 
         # create an empty ds with grid properties
         ds = self._get_empty_ds()
-        ds_g = ds.groupby("rows")
+        ds_g = ds.groupby(rowcol)
         da = ds_g.map(
-            _map_func,
+            map_func,
             f=func,
             name=name,
             ugrid=self.mesh2d,
