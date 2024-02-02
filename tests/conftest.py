@@ -38,6 +38,12 @@ def mesh(splines):
 def mesh_high_res(splines):
     return api.mesh.Mesh(splines, n=50, m=100)
 
+@fixture
+def mesh_points(splines, fn_points):
+    # setup a fresh mesh
+    # matplotlib.use("Qt5Agg")
+    return api.mesh.Mesh(splines, n=10, m=20, points=fn_points)
+
 
 
 
