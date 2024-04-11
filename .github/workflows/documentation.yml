@@ -33,7 +33,9 @@ jobs:
 #          environment-file: envs/pyorc-dev.yml
 #          activate-environment: pyorc-dev
       - name: install pandoc
-        run: apt install pandoc
+        run: |
+          sudo apt update
+          sudo apt install pandoc -y
 
       - name: Install orprofile
         run: pip install .
