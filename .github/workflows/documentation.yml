@@ -32,6 +32,9 @@ jobs:
 #          channel-priority: true
 #          environment-file: envs/pyorc-dev.yml
 #          activate-environment: pyorc-dev
+      - name: install pandoc
+        run: apt install pandoc
+
       - name: Install orprofile
         run: pip install .
 
