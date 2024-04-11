@@ -101,6 +101,27 @@ def depth_2d(mesh, alpha, L, kappa, c, A):
     Returns
     -------
     """
+    ds = _prepare_ds(mesh)
+    B_grid = _prepare_B_grid(ds)
+
+    # gamma = get_gamma(xi, yi, c, alpha, L, kappa)
+    # get the h_m values
+    ds = _compute_depth(ds, B_grid, alpha, L, kappa, c, A)
+    #
+    # h_m = A * np.pi / (2 * c * B_grid)
+    # gamma = _get_gamma(ds["xi"], ds["yi"], c, alpha, L, kappa, A, h_m)
+    # ds["h_m"] = ("mesh2d_nFaces", h_m)
+    # ds["gamma"] = ("mesh2d_nFaces", gamma)
+    # ds_g = xr.Dataset(ds).groupby("cols")
+    # depth = ds_g.map(
+    #     _depth_profile_row,
+    #     A=A,
+    # )
+    # depth.name = "depth"
+    # ds["depth"] = depth
+    return ds
+
+def _prepare_ds(mesh):
     ds = mesh._get_empty_ds()
     xi = mesh.map_rowcol_wise(
         get_dist,
@@ -115,17 +136,20 @@ def depth_2d(mesh, alpha, L, kappa, c, A):
     )
     ds["yi"] = yi
     ds["xi"] = yi
+    return ds
 
+def _prepare_B_grid(ds):
     # get the asymmetry parameter
     B_vector = ds["yi"].groupby("cols").max() - ds["yi"].groupby("cols").min()
     B_grid = np.zeros(len(ds["xi"]))
     for n, b in enumerate(B_vector.values):
         B_grid[ds["cols"] == n] = b
+    return B_grid
 
-    # gamma = get_gamma(xi, yi, c, alpha, L, kappa)
-    # get the h_m values
+
+def _compute_depth(ds, B_grid, alpha, L, kappa, c, A):
     h_m = A * np.pi / (2 * c * B_grid)
-    gamma = _get_gamma(xi, yi, c, alpha, L, kappa, A, h_m)
+    gamma = _get_gamma(ds["xi"], ds["yi"], c, alpha, L, kappa, A, h_m)
     ds["h_m"] = ("mesh2d_nFaces", h_m)
     ds["gamma"] = ("mesh2d_nFaces", gamma)
     ds_g = xr.Dataset(ds).groupby("cols")
