@@ -1,0 +1,7 @@
+sphinx
+sphinx_autosummary_accessors
+sphinxcontrib-programoutput
+pydata_sphinx_theme
+sphinx_design
+nbsphinx
+pandoc
