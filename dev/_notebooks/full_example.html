@@ -1,0 +1,686 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" data-theme="light">
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Making a bathymetry mesh and export a GeoTIFF from point clouds and bathymetric surveys &#8212; OpenRiverProfile  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "light";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8d27b9dea8ad943066ae" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=8d27b9dea8ad943066ae" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8d27b9dea8ad943066ae" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.1/css/all.min.css?digest=8d27b9dea8ad943066ae" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.1/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.1/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.1/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
+    <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/theme-local-devices.css?v=a5806073" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8d27b9dea8ad943066ae" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8d27b9dea8ad943066ae" />
+  <script src="../_static/vendor/fontawesome/6.5.1/js/all.min.js?digest=8d27b9dea8ad943066ae"></script>
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/design-tabs.js?v=36754332"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_notebooks/full_example';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="light">
+
+  
+  
+  <a id="pst-skip-link" class="skip-link" href="#main-content">Skip to main content</a>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>
+    Back to top
+  </button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          name="__primary"
+          id="__primary"/>
+  <label class="overlay overlay-primary" for="__primary"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          name="__secondary"
+          id="__secondary"/>
+  <label class="overlay overlay-secondary" for="__secondary"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar">
+<div class="bd-header__inner bd-page-width">
+  <label class="sidebar-toggle primary-toggle" for="__primary">
+    <span class="fa-solid fa-bars"></span>
+  </label>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">OpenRiverProfile</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../hardware.html">
+                        Hardware instructable
+                      </a>
+                    </li>
+                
+
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../survey.html">
+                        Survey
+                      </a>
+                    </li>
+                
+
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../install.html">
+                        Installation
+                      </a>
+                    </li>
+                
+
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../notebook.html">
+                        Notebook demonstration
+                      </a>
+                    </li>
+                
+
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../api.html">
+                        API reference
+                      </a>
+                    </li>
+                
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+ <script>
+ document.write(`
+   <button class="btn navbar-btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links navbar-nav"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/localdevice/ORProfile" title="GitHub" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg" class="icon-link-image" alt="GitHub"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://localdevices.org" title="Local devices" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="../_static/Local-Devices-horizontal-website-2.png" class="icon-link-image" alt="Local devices"/></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+ <script>
+ document.write(`
+   <button class="btn navbar-btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script>
+    </div>
+  
+
+  
+    <label class="sidebar-toggle secondary-toggle" for="__secondary" tabindex="0">
+      <span class="fa-solid fa-outdent"></span>
+    </label>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../hardware.html">
+                        Hardware instructable
+                      </a>
+                    </li>
+                
+
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../survey.html">
+                        Survey
+                      </a>
+                    </li>
+                
+
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../install.html">
+                        Installation
+                      </a>
+                    </li>
+                
+
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../notebook.html">
+                        Notebook demonstration
+                      </a>
+                    </li>
+                
+
+                    <li class="nav-item">
+                      <a class="nav-link nav-internal" href="../api.html">
+                        API reference
+                      </a>
+                    </li>
+                
+  </ul>
+</nav></div>
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links navbar-nav"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/localdevice/ORProfile" title="GitHub" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg" class="icon-link-image" alt="GitHub"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://localdevices.org" title="Local devices" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="../_static/Local-Devices-horizontal-website-2.png" class="icon-link-image" alt="Local devices"/></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+
+
+<nav aria-label="Breadcrumb">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">Making a...</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="Making-a-bathymetry-mesh-and-export-a-GeoTIFF-from-point-clouds-and-bathymetric-surveys">
+<h1>Making a bathymetry mesh and export a GeoTIFF from point clouds and bathymetric surveys<a class="headerlink" href="#Making-a-bathymetry-mesh-and-export-a-GeoTIFF-from-point-clouds-and-bathymetric-surveys" title="Link to this heading">#</a></h1>
+<p>In this notebook we demonstrate the full process to go from a sparse set of points in a stream to a bathymetric model of the stream using geomorphological principles. In order we do the following: - [x] prepare a “mesh” object from a set of splines - [x] provide points from a fishfinder survey to the mesh - [x] optimize bathymetric parameters of the mesh - [x] refine the more specific small-scale parameters - [x] export the mesh to a NetCDF file and a GeoTIFF</p>
+<section id="Make-a-mesh-object-from-splines">
+<h2>Make a mesh object from splines<a class="headerlink" href="#Make-a-mesh-object-from-splines" title="Link to this heading">#</a></h2>
+<p>In our examples data folder, we have a set of splines prepared. Let’s first have a look at these by loading them into geopandas and make a very very simple plot. Geopandas is a library that can be used to load, save and manipulate geospatial vector data such as points, lines and polygons.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[18]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">geopandas</span> <span class="k">as</span> <span class="nn">gpd</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="n">splines</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">&quot;../examples/data/splines.geojson&quot;</span><span class="p">)</span>
+<span class="n">splines</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+
+<span class="c1"># we&#39;ll annotate so that things are clear. We plot annotations at the centroid of each line</span>
+
+<span class="n">annot</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;right bank&quot;</span><span class="p">,</span> <span class="s2">&quot;left bank&quot;</span><span class="p">,</span>  <span class="s2">&quot;downstream&quot;</span><span class="p">,</span> <span class="s2">&quot;upstream&quot;</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="p">(</span><span class="n">geom</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">splines</span><span class="o">.</span><span class="n">geometry</span><span class="p">,</span> <span class="n">annot</span><span class="p">)):</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span>
+        <span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">geom</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">xy</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span>
+        <span class="sa">f</span><span class="s2">&quot;line </span><span class="si">{</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+<br/></pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/_notebooks_full_example_2_0.png" src="../_images/_notebooks_full_example_2_0.png" />
+</div>
+</div>
+<p>These lines can be drawn in a GIS such as QGIS. It is important to note a few things: - the order is important. The first two splines should contain the left and right bank (top and bottom slightly curved lines in figure), the third and fourth the lines perpendicular to the stream (two straight lines on left and right side). - The lines along the banks should be following the shoreline as much as possible during the measurement campaign and should be as straight as possible. The lines may
+contain multiple vertices as you can see. - The perpendicular lines <em>MUST</em> be only one vertex (click only two points to create them).</p>
+<p>Now we can use these to generate a mesh as follows.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[22]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">orprofile</span> <span class="kn">import</span> <span class="n">api</span>
+
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">splines</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+<span class="c1"># fn_points = &quot;../examples/data/bamboi_survey.geojson&quot;</span>
+<span class="c1"># mesh = api.mesh.Mesh(splines, n=50, m=100, points=fn_points)</span>
+
+<span class="c1"># mesh.plot()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[22]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+&lt;GeoAxes: &gt;
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/_notebooks_full_example_4_1.png" src="../_images/_notebooks_full_example_4_1.png" />
+</div>
+</div>
+<p>Let’s explain this further. ORPRofile has a so-called <code class="docutils literal notranslate"><span class="pre">Mesh</span></code> class, which generates a mesh (or grid) with some intelligence. A mesh is essentially a grid, in our case a so-called curvilinear grid. It looks almost like a regular grid but can be shaped in certain directions. A <code class="docutils literal notranslate"><span class="pre">Mesh</span></code> object can consequently read in your data, analyze the likely geomorphological regime belonging to it by fitting a model based on Lacey’s equation, and then estimate depths using the fit within the mesh grid
+cells. This can then provide insights on the bathymetry, and also where the Lacey assumptions do not seem to apply very well. This is where residuals between observations and fitted depths are poor. These are likely locations where there is some non-natural influence on the sedimentation process. Naturally this only applies in alluvial depositing stream sections.</p>
+<p>In detail, in the code we simply say that we want a mesh initiated within the area defined by the 4 splines, and that this mesh should contain 20 rows and 10 columns. The mesh will then be made in between the 4 splines. The plot also shows a nice satellite view. There are some further options for the plot, which are documented in our API documentation. Please have a look at that for further options.</p>
+</section>
+</section>
+<section id="Make-a-random-bathymetry-using-the-Lacey-model.">
+<h1>Make a random bathymetry using the Lacey model.<a class="headerlink" href="#Make-a-random-bathymetry-using-the-Lacey-model." title="Link to this heading">#</a></h1>
+<p>The cool thing is that the the mesh object understand some regime theory. We have made a 2-dimensional model that estimates bathymetry using 5 different parameters. We assume that there is always a “deepest point” <span class="math notranslate nohighlight">\(h_m\)</span> over perpendicular sections and that this deepest point meanders in between the left and right natural levee following a 3-parameter sinus function. The natural levees can be further away from the two left and right splines that we have drawn. These splines merely denote
+the left and right wetted banks during the survey. The parameters of the model are:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(A\)</span> [m<span class="math notranslate nohighlight">\(^2\)</span>]: the wetted surface (assumed constant over the entire longitudinal reach).</p></li>
+<li><p><span class="math notranslate nohighlight">\(c\)</span> [-]: dimensionless constant defining how <span class="math notranslate nohighlight">\(h_m\)</span> relates to the grid width at a given location. This is the typical Lacey law, i.e. that there is a depth / width ratio, dependent on the sediment types (fine sediments: depth/width is small, coarse sediments: depth/width is large)</p></li>
+<li><p><span class="math notranslate nohighlight">\(\alpha\)</span> [m]: the amplitude of the offset from the center of the deepest point. Measures the scale of the meanders.</p></li>
+<li><p><span class="math notranslate nohighlight">\(L\)</span> [m]: the length scale (wave length) of the offset of deepest point sinus.</p></li>
+<li><p><span class="math notranslate nohighlight">\(\kappa\)</span> [rad]: the phase of the deepest point sinus.</p></li>
+</ul>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[27]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="n">alpha</span> <span class="o">=</span> <span class="mi">10</span>  <span class="c1"># amplitude of meander around centerline [m]</span>
+<span class="n">L</span> <span class="o">=</span> <span class="mi">200</span>  <span class="c1"># wave length m</span>
+<span class="n">A</span> <span class="o">=</span> <span class="mi">350</span>  <span class="c1"># conveyance surface m2</span>
+<span class="n">c</span> <span class="o">=</span> <span class="mf">1.0</span>  <span class="c1"># width to grid width ratio [-]</span>
+<span class="n">kappa</span> <span class="o">=</span> <span class="o">-</span><span class="mf">.25</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span>  <span class="c1"># phase [rad]</span>
+
+<span class="c1"># optimized parameters are below</span>
+<span class="c1"># alpha, L, kappa, c, A = [10, 39.4624431, 0.204105903, 1.188, 429.690415]</span>
+
+
+<span class="c1"># optimized large-scale parameters, smaller scale defined by user??</span>
+<span class="c1"># L = 200</span>
+<span class="c1"># kappa = -.25*np.pi  # phase [rad]</span>
+<span class="c1"># alpha = 30</span>
+
+<span class="c1"># we use the depth_2d function of orprofile to make a depth estimate using the 5 parameters. Input is the mesh, and the 5 parameters.</span>
+<span class="n">ds_depth</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">depth_2d</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">kappa</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">A</span><span class="p">)</span>
+
+<span class="c1"># mesh.points[&quot;depth&quot;] = mesh.points[&quot;Depth&quot;] - 116.1</span>
+
+<span class="n">f</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">points_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;cmap&quot;</span><span class="p">:</span> <span class="s2">&quot;gist_earth&quot;</span><span class="p">,</span> <span class="s2">&quot;vmin&quot;</span><span class="p">:</span> <span class="n">ds_depth</span><span class="p">[</span><span class="s2">&quot;depth&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="s2">&quot;vmax&quot;</span><span class="p">:</span> <span class="n">ds_depth</span><span class="p">[</span><span class="s2">&quot;depth&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()})</span>
+<span class="n">ds_depth</span> <span class="o">=</span> <span class="n">ds_depth</span><span class="o">.</span><span class="n">ugrid</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">projection</span><span class="p">)</span>
+<span class="n">ds_depth</span><span class="p">[</span><span class="s2">&quot;depth&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">ugrid</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;gist_earth&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[27]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+&lt;matplotlib.collections.PolyCollection at 0x7a1a536e5f90&gt;
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/_notebooks_full_example_7_1.png" src="../_images/_notebooks_full_example_7_1.png" />
+</div>
+</div>
+<p>This can be totally wrong of course, and also the resolution is really poor. Let’s first improve the resolution, by making a new mesh with more detail and rerun everything.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[31]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">mesh_high_res</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">mesh</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">splines</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mi">35</span><span class="p">)</span>
+
+<span class="n">ds_depth_high_res</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">depth_2d</span><span class="p">(</span><span class="n">mesh_high_res</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">kappa</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">A</span><span class="p">)</span>
+
+<span class="n">f</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">mesh_high_res</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+<span class="c1"># change the projection to match the projection of the axes</span>
+<span class="n">ds_depth_high_res</span> <span class="o">=</span> <span class="n">ds_depth_high_res</span><span class="o">.</span><span class="n">ugrid</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">projection</span><span class="p">)</span>
+<span class="n">ds_depth_high_res</span><span class="p">[</span><span class="s2">&quot;depth&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">ugrid</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;gist_earth&quot;</span><span class="p">)</span>
+<br/></pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[31]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+&lt;matplotlib.collections.PolyCollection at 0x7a1a518fd180&gt;
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/_notebooks_full_example_9_1.png" src="../_images/_notebooks_full_example_9_1.png" />
+</div>
+</div>
+<p>You can see here that the mesh is slightly narrower on the upstream (right) side. This means that the 5-parameter model, in order to ensure that the conveyance surface remains the same, also requires more depth in the middel than on the downstream side. Let’s now confront this with some observations. You can do this by adding observations to the mesh a plot it again.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Making a bathymetry mesh and export a GeoTIFF from point clouds and bathymetric surveys</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#Make-a-mesh-object-from-splines">Make a mesh object from splines</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#Make-a-random-bathymetry-using-the-Lacey-model.">Make a random bathymetry using the Lacey model.</a></li>
+</ul>
+
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/localdevices/ORProfile/edit/main/docs/_notebooks/full_example.ipynb">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../_sources/_notebooks/full_example.ipynb.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=8d27b9dea8ad943066ae"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=8d27b9dea8ad943066ae"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright Rainbow Sensing, OpenDroneMap.org, Delft, University of Technology.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.2.6.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.15.2.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
