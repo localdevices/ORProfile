@@ -16,6 +16,7 @@ import xugrid as xu
 
 __all__ = ["Mesh"]
 
+
 def get_dist(row):
     # get the centroid coordinates of each face
     x = row.ugrid.to_geodataframe().centroid.x
@@ -27,12 +28,14 @@ def get_dist(row):
     # use the "cols" variable as a template
     return xr.DataArray(s, coords=row.coords)
 
+
 def get_xi(mesh):
     return mesh.map_rowcol_wise(
         get_dist,
         name="xi",
         rowcol="rows"
     )
+
 
 def get_yi(mesh):
     return mesh.map_rowcol_wise(
@@ -52,6 +55,7 @@ def map_func(row, f, ugrid, name="new", **kwargs):
 
 # specific function that computes something. This can be made by the user and applied
 
+
 class Mesh(object):
     def __init__(
             self,
@@ -59,7 +63,8 @@ class Mesh(object):
             n=10,
             m=10,
             points=None,
-            mesh_kernel=None  # if provided it will be set from mesh kernel, otherwise grown from the pars and splines
+            mesh_kernel=None, # if provided it will be set from mesh kernel, otherwise grown from the pars and splines
+            mesh2d=None, # if provided, set directly, otherwise converted from mesh_kernel if available
     ):
         self.n = n
         self.m = m
@@ -67,6 +72,7 @@ class Mesh(object):
         if points is not None:
             self.points = points
         self.mesh_kernel = mesh_kernel
+        self.mesh2d = mesh2d
 
 
     def __repr__(self):
@@ -105,7 +111,6 @@ class Mesh(object):
         else:
             self.read_points(gdf)
 
-
     @property
     def mesh_kernel(self):
         """
@@ -130,7 +135,6 @@ class Mesh(object):
             )
             mesh_kernel.curvilinear_convert_to_mesh2d()  #.curvilineargrid_get()
         self._mesh_kernel = mesh_kernel
-
 
     @property
     def splines(self):
@@ -189,8 +193,6 @@ class Mesh(object):
         else:
             print("Splines are not crossing each other properly, ensure each spline crosses at least 2 other splines")
 
-
-
     @property
     def mesh2d(self):
         """
@@ -199,15 +201,30 @@ class Mesh(object):
         -------
         xu compatible 2D grid
         """
-        grid = self.mesh_kernel.mesh2d_get()
-        return xu.Ugrid2d.from_meshkernel(grid, crs=self.crs)
+        if hasattr(self, "_mesh2d"):
+            return self._mesh2d
 
+    @mesh2d.setter
+    def mesh2d(self, mesh2d=None):
+        if mesh2d:
+            self._mesh2d = mesh2d
+        elif self.mesh_kernel:
+            grid = self.mesh_kernel.mesh2d_get()
+            self._mesh2d = xu.Ugrid2d.from_meshkernel(grid, crs=self.crs)
 
     @property
     def rowscols(self):
         rows = np.repeat([np.arange(self.n)], self.m, axis=0).flatten()
         columns = np.repeat(np.arange(self.m), self.n)
         return rows, columns
+
+    def add_rows(self, left=0, right=0):
+        mesh = copy.copy(self)
+        for n in range(left):
+            mesh = mesh_new_row(mesh, side="left")
+        for n in range(right):
+            mesh = mesh_new_row(mesh, side="right")
+        return mesh
 
     def plot(
             self,
@@ -280,7 +297,6 @@ class Mesh(object):
         ax.legend()
         return ax
 
-
     def _get_empty_ds(self):
         """
         make an empty template for a xu.UgridDataset with a underlying unstructured grid
@@ -320,7 +336,6 @@ class Mesh(object):
 
 
         return ds
-
 
     def _get_index_da(self):
         """
@@ -375,7 +390,6 @@ class Mesh(object):
             grid=self.mesh2d
         )
 
-
     def read_points(self, fn, crs=None):
         """
         Read a set of surveyed points. These should be contained in the point geometry of the read file
@@ -416,8 +430,8 @@ def mesh_new_row(mesh, side="left"):
         extend_idx = [2, 1]
     else:
         bank_idx = rows == rows.max()
-        first_extend_idx = [1, 2]
-        extend_idx = [0, 3]
+        first_extend_idx = [0, 3]
+        extend_idx = [1, 2]
     mesh2d_faces_row = mesh2d["mesh2d_face_nodes"][bank_idx]
     new_x, new_y = [], []
     new_edge = []
@@ -450,14 +464,29 @@ def mesh_new_row(mesh, side="left"):
     # now generate the new nodes and faces
     x = np.concatenate([mesh2d["mesh2d_node_x"].values, new_x])
     y = np.concatenate([mesh2d["mesh2d_node_y"].values, new_y])
-    new_faces = np.vstack(
-        [mesh2d_faces_row.values[:, 0],
-         mesh2d_faces_row.values[:, 1],
-         np.arange(len(mesh2d_faces_row)) + len(mesh2d["mesh2d_node_x"]),
-         np.arange(len(mesh2d_faces_row)) + 1 + len(mesh2d["mesh2d_node_x"])]
-    ).T
-    faces = np.insert(mesh2d["mesh2d_face_nodes"], np.where(bank_idx)[0], new_faces, axis=0)
-    print(len(faces))
+    if side == "left":
+        new_faces = np.vstack(
+            [
+                np.arange(len(mesh2d_faces_row)) + len(mesh2d["mesh2d_node_x"]),
+                np.arange(len(mesh2d_faces_row)) + 1 + len(mesh2d["mesh2d_node_x"]),
+                mesh2d_faces_row.values[:, 1],
+                mesh2d_faces_row.values[:, 0],
+            ]
+        ).T
+    elif side == "right":
+        new_faces = np.vstack(
+            [
+                mesh2d_faces_row.values[:, 3],
+                mesh2d_faces_row.values[:, 2],
+                np.arange(len(mesh2d_faces_row)) + 1 + len(mesh2d["mesh2d_node_x"]),
+                np.arange(len(mesh2d_faces_row)) + len(mesh2d["mesh2d_node_x"]),
+            ]
+        ).T
+    if side == "left":
+        faces = np.insert(mesh2d["mesh2d_face_nodes"], np.where(bank_idx)[0], new_faces, axis=0)
+    else:
+        faces = np.insert(mesh2d["mesh2d_face_nodes"], np.where(bank_idx)[0] + 1, new_faces, axis=0)
+
     edges = np.vstack([mesh2d["mesh2d_edge_nodes"], new_edge])
     # now rearrange the mesh
     del mesh2d["mesh2d_node_x"]
@@ -468,18 +497,21 @@ def mesh_new_row(mesh, side="left"):
     mesh2d["mesh2d_node_x"].attrs = mesh.mesh2d.to_dataset()["mesh2d_node_x"].attrs
     mesh2d["mesh2d_node_y"].attrs = mesh.mesh2d.to_dataset()["mesh2d_node_y"].attrs
     # first remove the original faces
+
     del mesh2d["mesh2d_face_nodes"]
+    # del mesh2d["mesh2d_nFaces"]
     # then replace the number of faces with the new length
     mesh2d["mesh2d_nFaces"] = np.arange(len(faces), dtype=np.int64)
+    mesh2d["mesh2d_nMax_face_nodes"] = np.arange(4, dtype=np.int64)
     # now reinsert the new list of faces
-    mesh2d["mesh2d_face_nodes"] = faces
+    mesh2d["mesh2d_face_nodes"] = ("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), faces.data
     # do the same for the edges
     del mesh2d["mesh2d_edge_nodes"]
     mesh2d["mesh2d_nEdges"] = np.arange(len(edges), dtype=np.int64)
     mesh2d["mesh2d_edge_nodes"] = ("mesh2d_nEdges", "two"), edges
     new_mesh = xu.Ugrid2d.from_dataset(mesh2d)
     mesh_new.mesh_kernel = new_mesh.meshkernel
+    mesh_new.mesh2d = new_mesh
     # increase amount of rows
     mesh_new.n += 1
-    # print(mesh2d)
     return mesh_new
