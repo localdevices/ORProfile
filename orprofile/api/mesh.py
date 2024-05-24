@@ -224,7 +224,8 @@ class Mesh(object):
             mesh = mesh_new_row(mesh, side="left")
         for n in range(right):
             mesh = mesh_new_row(mesh, side="right")
-        return mesh
+
+        return Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel)
 
     def plot(
             self,
@@ -511,7 +512,10 @@ def mesh_new_row(mesh, side="left"):
     mesh2d["mesh2d_edge_nodes"] = ("mesh2d_nEdges", "two"), edges
     new_mesh = xu.Ugrid2d.from_dataset(mesh2d)
     mesh_new.mesh_kernel = new_mesh.meshkernel
+    # new_mesh = new_mesh.set_crs(mesh.crs)
     mesh_new.mesh2d = new_mesh
+    # xu.Ugrid2d.from_meshkernel(new_mesh.meshkernel.mesh2d_get(), crs=mesh.crs)
     # increase amount of rows
     mesh_new.n += 1
+    # mesh_new.mesh2d.set_crs(copy.deepcopy(mesh.crs))
     return mesh_new
