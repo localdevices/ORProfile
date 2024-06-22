@@ -1,6 +1,5 @@
 from orprofile.api import Mesh
 import matplotlib.pyplot as plt
-import matplotlib
 
 
 def test_mesh(splines):

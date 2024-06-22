@@ -3,16 +3,19 @@ import cartopy.crs as ccrs
 import copy
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import numpy as np
-import os
-from shapely.geometry import Point
 from meshkernel import (
     CurvilinearParameters,
     GeometryList,
     MeshKernel,
 )
+import numpy as np
+import os
+from shapely.geometry import Point, Polygon
 import xarray as xr
 import xugrid as xu
+
+from .. import geom
+
 
 __all__ = ["Mesh"]
 
@@ -65,6 +68,7 @@ class Mesh(object):
             points=None,
             mesh_kernel=None, # if provided it will be set from mesh kernel, otherwise grown from the pars and splines
             mesh2d=None, # if provided, set directly, otherwise converted from mesh_kernel if available
+            faces_inside=None
     ):
         self.n = n
         self.m = m
@@ -80,7 +84,9 @@ class Mesh(object):
             "n": self.n,
             "m": self.m,
             "crs": self.crs,
-            "points head": None if self.points is None else self.points["geometry"].head()
+            "points head": None if self.points is None else self.points["geometry"].head(),
+            "faces inside polygon": self.faces_inside.sum(),
+            "faces outside polygon": (~self.faces_inside).sum()
         }
         info_str = ""
         for k, v in info.items():
@@ -89,8 +95,28 @@ class Mesh(object):
 
 
     @property
+    def area(self):
+        return geom.crossing_lines_to_polygon(self.splines.geometry)
+
+
+    @property
+    def centroids(self):
+        return gpd.GeoSeries(self.mesh2d.to_shapely(dim="mesh2d_nFaces")).centroid
+
+    @property
     def crs(self):
         return self.splines.crs
+
+
+    @property
+    def faces_inside(self):
+        return self.centroids.within(self.area.values[0][0])
+
+
+    @property
+    def faces_outside(self):
+        return ~self.centroids.within(self.area.values[0][0])
+
 
     @property
     def points(self):
@@ -225,7 +251,7 @@ class Mesh(object):
         for n in range(right):
             mesh = mesh_new_row(mesh, side="right")
 
-        return Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel)
+        return Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel, faces_inside=mesh.faces_inside)
 
     def plot(
             self,
@@ -269,7 +295,10 @@ class Mesh(object):
         if extent is not None:
             ax.set_extent(extent, crs=ccrs.PlateCarree())
         m = self.mesh2d.to_crs(crs.to_wkt())
-        m.plot(ax=ax, label="mesh", zorder=2, alpha=0.5)
+        msel = m.isel(mesh2d_nFaces=self.faces_inside.values)
+        msel.plot(ax=ax, label="mesh cells inside splines", zorder=2, alpha=0.5)
+        msel = m.isel(mesh2d_nFaces=~self.faces_inside.values)
+        msel.plot(ax=ax, label="mesh cells outside splines", zorder=2, alpha=0.5, color="#FF9900")
         if tiles is not None:
             ax.add_image(tiler, zoom_level, zorder=1)
         # now add the gdf
@@ -474,6 +503,7 @@ def mesh_new_row(mesh, side="left"):
                 mesh2d_faces_row.values[:, 0],
             ]
         ).T
+        insert_idx = np.where(bank_idx)[0]
     elif side == "right":
         new_faces = np.vstack(
             [
@@ -483,10 +513,14 @@ def mesh_new_row(mesh, side="left"):
                 np.arange(len(mesh2d_faces_row)) + len(mesh2d["mesh2d_node_x"]),
             ]
         ).T
-    if side == "left":
-        faces = np.insert(mesh2d["mesh2d_face_nodes"], np.where(bank_idx)[0], new_faces, axis=0)
-    else:
-        faces = np.insert(mesh2d["mesh2d_face_nodes"], np.where(bank_idx)[0] + 1, new_faces, axis=0)
+        insert_idx = np.where(bank_idx)[0] + 1
+
+    # if side == "left":
+    faces = np.insert(mesh2d["mesh2d_face_nodes"], insert_idx, new_faces, axis=0)
+    # add to faces_inside
+    # mesh_new.faces_inside = np.insert(mesh.faces_inside, insert_idx, np.zeros(len(new_faces), dtype=bool), axis=0)
+    # else:
+    #     faces = np.insert(mesh2d["mesh2d_face_nodes"], np.where(bank_idx)[0] + 1, new_faces, axis=0)
 
     edges = np.vstack([mesh2d["mesh2d_edge_nodes"], new_edge])
     # now rearrange the mesh
