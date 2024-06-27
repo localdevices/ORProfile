@@ -296,9 +296,11 @@ class Mesh(object):
             ax.set_extent(extent, crs=ccrs.PlateCarree())
         m = self.mesh2d.to_crs(crs.to_wkt())
         msel = m.isel(mesh2d_nFaces=self.faces_inside.values)
-        msel.plot(ax=ax, label="mesh cells inside splines", zorder=2, alpha=0.5)
+        if len(msel.to_dataset().mesh2d_nFaces) > 0:
+            msel.plot(ax=ax, label="mesh cells inside splines", zorder=2, alpha=0.5)
         msel = m.isel(mesh2d_nFaces=~self.faces_inside.values)
-        msel.plot(ax=ax, label="mesh cells outside splines", zorder=2, alpha=0.5, color="#FF9900")
+        if len(msel.to_dataset().mesh2d_nFaces) > 0:
+            msel.plot(ax=ax, label="mesh cells outside splines", zorder=2, alpha=0.5, color="#FF9900")
         if tiles is not None:
             ax.add_image(tiler, zoom_level, zorder=1)
         # now add the gdf
