@@ -1,14 +1,23 @@
 import numpy as np
 import orprofile
 import matplotlib.pyplot as plt
+import pytest
 
-def test_depth(mesh_high_res):
+
+@pytest.mark.parametrize(
+    "mesh_",
+    [
+        # "mesh_high_res",
+        "mesh_extend",
+     ]
+)
+def test_depth(mesh_, request):
+    mesh_ = request.getfixturevalue(mesh_)
     alpha = 20
     L = 150
     kappa = 0.5*np.pi
     c = 0.8
     A = 500
-    ds = orprofile.api.depth_2d(mesh_high_res, alpha, L, kappa, c, A)
-    ax = plt.subplot(111)
-    p = ds["depth"].ugrid.plot(ax=ax)
+    ds = orprofile.api.depth_2d(mesh_, alpha, L, kappa, c, A)
+    p = ds["depth"].ugrid.plot()
     plt.show()

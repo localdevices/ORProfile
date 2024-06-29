@@ -248,10 +248,13 @@ class Mesh(object):
         mesh = copy.copy(self)
         for n in range(left):
             mesh = mesh_new_row(mesh, side="left")
+            # mesh = Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel) #, faces_inside=mesh.faces_inside)
         for n in range(right):
             mesh = mesh_new_row(mesh, side="right")
-
-        return Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel, faces_inside=mesh.faces_inside)
+            # mesh = Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel) #, faces_inside=mesh.faces_inside)
+        mesh._mesh2d.crs = self.crs
+        return mesh
+        # return Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel, faces_inside=mesh.faces_inside)
 
     def plot(
             self,
