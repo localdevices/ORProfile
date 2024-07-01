@@ -70,13 +70,13 @@ class Mesh(object):
             mesh2d=None, # if provided, set directly, otherwise converted from mesh_kernel if available
             faces_inside=None
     ):
+        self._mesh2d = None
         self.n = n
         self.m = m
         self.splines = spline_shape
         if points is not None:
             self.points = points
-        self.mesh_kernel = mesh_kernel
-        self.mesh2d = mesh2d
+        self.set_mesh2d(mesh2d=mesh2d, mesh_kernel=mesh_kernel)
 
 
     def __repr__(self):
@@ -136,31 +136,6 @@ class Mesh(object):
             self._points = gdf
         else:
             self.read_points(gdf)
-
-    @property
-    def mesh_kernel(self):
-        """
-
-        Returns
-        -------
-        meshkernel.MeshKernel
-            contains the curvilinear grid based on defined splines and row/column parameters
-        """
-        if hasattr(self, "_mesh_kernel"):
-            return self._mesh_kernel
-
-    @mesh_kernel.setter
-    def mesh_kernel(self, mesh_kernel=None):
-        if not mesh_kernel:
-            mesh_kernel = MeshKernel()
-            curvilinear_parameters = CurvilinearParameters()
-            curvilinear_parameters.n_refinement = self.n
-            curvilinear_parameters.m_refinement = self.m
-            mesh_kernel.curvilinear_compute_transfinite_from_splines(
-                self.splines_mesh, curvilinear_parameters
-            )
-            mesh_kernel.curvilinear_convert_to_mesh2d()  #.curvilineargrid_get()
-        self._mesh_kernel = mesh_kernel
 
     @property
     def splines(self):
@@ -230,31 +205,37 @@ class Mesh(object):
         if hasattr(self, "_mesh2d"):
             return self._mesh2d
 
-    @mesh2d.setter
-    def mesh2d(self, mesh2d=None):
-        if mesh2d:
-            self._mesh2d = mesh2d
-        elif self.mesh_kernel:
-            grid = self.mesh_kernel.mesh2d_get()
-            self._mesh2d = xu.Ugrid2d.from_meshkernel(grid, crs=self.crs)
-
     @property
     def rowscols(self):
         rows = np.repeat([np.arange(self.n)], self.m, axis=0).flatten()
         columns = np.repeat(np.arange(self.m), self.n)
         return rows, columns
 
+    def set_mesh2d(self, mesh2d=None, mesh_kernel=None):
+        if mesh2d:
+            self._mesh2d = mesh2d
+            return
+        # if no mesh2d, then check if mesh kernel exists, if not grow it from splines
+        if not mesh_kernel:
+            mesh_kernel = MeshKernel()
+            curvilinear_parameters = CurvilinearParameters()
+            curvilinear_parameters.n_refinement = self.n
+            curvilinear_parameters.m_refinement = self.m
+            mesh_kernel.curvilinear_compute_transfinite_from_splines(
+                self.splines_mesh, curvilinear_parameters
+            )
+            mesh_kernel.curvilinear_convert_to_mesh2d()  #.curvilineargrid_get()
+        grid = mesh_kernel.mesh2d_get()
+        self._mesh2d = xu.Ugrid2d.from_meshkernel(grid, crs=self.crs)
+
     def add_rows(self, left=0, right=0):
         mesh = copy.copy(self)
         for n in range(left):
             mesh = mesh_new_row(mesh, side="left")
-            # mesh = Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel) #, faces_inside=mesh.faces_inside)
         for n in range(right):
             mesh = mesh_new_row(mesh, side="right")
-            # mesh = Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel) #, faces_inside=mesh.faces_inside)
         mesh._mesh2d.crs = self.crs
         return mesh
-        # return Mesh(mesh.splines, n=mesh.n, m=mesh.m, mesh_kernel=mesh.mesh_kernel, faces_inside=mesh.faces_inside)
 
     def plot(
             self,
@@ -306,8 +287,6 @@ class Mesh(object):
             msel.plot(ax=ax, label="mesh cells outside splines", zorder=2, alpha=0.5, color="#FF9900")
         if tiles is not None:
             ax.add_image(tiler, zoom_level, zorder=1)
-        # now add the gdf
-        # self.mesh_kernel.plot_edges(ax, color="r", transform=ccrs.epsg(self.splines.crs.to_epsg()), label="mesh edges")
         self.splines.plot(
             ax=ax,
             transform=ccrs.epsg(self.splines.crs.to_epsg()),
@@ -456,7 +435,7 @@ class Mesh(object):
 
 
 def mesh_new_row(mesh, side="left"):
-    mesh_new = copy.copy(mesh)
+    mesh_new = copy.deepcopy(mesh)
     mesh2d = mesh.mesh2d.to_dataset()
     rows, _ = mesh.rowscols
     if side == "left":
@@ -520,12 +499,7 @@ def mesh_new_row(mesh, side="left"):
         ).T
         insert_idx = np.where(bank_idx)[0] + 1
 
-    # if side == "left":
     faces = np.insert(mesh2d["mesh2d_face_nodes"], insert_idx, new_faces, axis=0)
-    # add to faces_inside
-    # mesh_new.faces_inside = np.insert(mesh.faces_inside, insert_idx, np.zeros(len(new_faces), dtype=bool), axis=0)
-    # else:
-    #     faces = np.insert(mesh2d["mesh2d_face_nodes"], np.where(bank_idx)[0] + 1, new_faces, axis=0)
 
     edges = np.vstack([mesh2d["mesh2d_edge_nodes"], new_edge])
     # now rearrange the mesh
@@ -539,7 +513,6 @@ def mesh_new_row(mesh, side="left"):
     # first remove the original faces
 
     del mesh2d["mesh2d_face_nodes"]
-    # del mesh2d["mesh2d_nFaces"]
     # then replace the number of faces with the new length
     mesh2d["mesh2d_nFaces"] = np.arange(len(faces), dtype=np.int64)
     mesh2d["mesh2d_nMax_face_nodes"] = np.arange(4, dtype=np.int64)
@@ -550,11 +523,7 @@ def mesh_new_row(mesh, side="left"):
     mesh2d["mesh2d_nEdges"] = np.arange(len(edges), dtype=np.int64)
     mesh2d["mesh2d_edge_nodes"] = ("mesh2d_nEdges", "two"), edges
     new_mesh = xu.Ugrid2d.from_dataset(mesh2d)
-    mesh_new.mesh_kernel = new_mesh.meshkernel
-    # new_mesh = new_mesh.set_crs(mesh.crs)
-    mesh_new.mesh2d = new_mesh
-    # xu.Ugrid2d.from_meshkernel(new_mesh.meshkernel.mesh2d_get(), crs=mesh.crs)
+    mesh_new._mesh2d = new_mesh
     # increase amount of rows
     mesh_new.n += 1
-    # mesh_new.mesh2d.set_crs(copy.deepcopy(mesh.crs))
     return mesh_new
