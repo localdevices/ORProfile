@@ -52,6 +52,7 @@ os.makedirs("_notebooks")
 
 # explicitly copy required files below.
 shutil.copy("../notebooks/full_example.ipynb", "_notebooks")
+shutil.copy("../notebooks/Lacey_implementation.ipynb", "_notebooks")
 
 # -- General configuration ------------------------------------------------
 
