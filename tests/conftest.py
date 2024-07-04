@@ -40,7 +40,7 @@ def mesh_high_res(splines):
 
 @fixture
 def mesh_extend(mesh):
-    mesh_ = mesh.add_rows(left=30, right=30)
+    mesh_ = mesh.add_rows(left=10, right=10)
     return mesh_
 
 

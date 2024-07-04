@@ -6,7 +6,8 @@ import xarray as xr
 from ..profile.lacey import depth_profile_left_right_parameters, deepest_point_y_dist
 from .mesh import get_dist
 
-def _get_gamma(xi, yi, c, alpha, L, kappa, A, h_m):
+
+def _get_gamma(xi, yi, c, alpha, L, kappa, A, h_m, mesh):
     """
     Estimate the asymmetry parameter for an entire curvilinear grid using the bank-to-bank distances (in yi)
     and the longitudinal distances (in xi).
@@ -29,6 +30,8 @@ def _get_gamma(xi, yi, c, alpha, L, kappa, A, h_m):
         conveyance, measured as wetted cross sectional surface [m2]
     h_m : array-like (float)
         depth at deepest point
+    mesh : Mesh
+        mesh instance belonging to xi/yi coordinates
 
     Returns
     -------
@@ -36,11 +39,13 @@ def _get_gamma(xi, yi, c, alpha, L, kappa, A, h_m):
         gamma parameter, describing the channel asymmetry
     """
     # compute the location of the middle ordinate coordinate
+    yi_sel = yi.isel(mesh2d_nFaces=mesh.faces_inside)
+    xi_sel = xi.isel(mesh2d_nFaces=mesh.faces_inside)
     y_mean = yi.groupby("cols").mean()
-    y_disti = deepest_point_y_dist(xi, alpha, L, kappa, y_off_mean=0.)  # y_off_mean could possibly become an extra parameter
+    y_disti = deepest_point_y_dist(xi_sel, alpha, L, kappa, y_off_mean=0.)  # y_off_mean could possibly become an extra parameter
 
     h = 2 * h_m / np.pi
-    Br_vector = y_mean - yi.groupby("cols").min() + y_disti.groupby("cols").max()
+    Br_vector = y_mean - yi_sel.groupby("cols").min() + y_disti.groupby("cols").max()
     Br_grid = np.zeros(len(xi))
     for n, br in enumerate(Br_vector.values):
         Br_grid[xi["cols"] == n] = br
@@ -75,7 +80,9 @@ def _depth_profile_row(row, A):
     s = row.yi
     gamma = row["gamma"]
     h_m = row["h_m"]
-    depth = depth_profile_left_right_parameters(s, gamma, h_m, A) * (h_m * 0 + 1)
+    wet_dry = row["wet_dry"]
+    B_vector = row["B_grid"]
+    depth = depth_profile_left_right_parameters(s, gamma, h_m, wet_dry, A) * (h_m * 0 + 1)
     return depth
 
 
@@ -117,17 +124,20 @@ def depth_2d(mesh, alpha, L, kappa, c, A):
     ds["xi"] = yi
 
     # get the asymmetry parameter
-    B_vector = ds["yi"].groupby("cols").max() - ds["yi"].groupby("cols").min()
+    ds_sel = ds.isel(mesh2d_nFaces=mesh.faces_inside)
+    B_vector = ds_sel["yi"].groupby("cols").max() - ds_sel["yi"].groupby("cols").min()
     B_grid = np.zeros(len(ds["xi"]))
     for n, b in enumerate(B_vector.values):
         B_grid[ds["cols"] == n] = b
-
     # gamma = get_gamma(xi, yi, c, alpha, L, kappa)
     # get the h_m values
     h_m = A * np.pi / (2 * c * B_grid)
-    gamma = _get_gamma(xi, yi, c, alpha, L, kappa, A, h_m)
+
+    gamma = _get_gamma(xi, yi, c, alpha, L, kappa, A, h_m, mesh)
     ds["h_m"] = ("mesh2d_nFaces", h_m)
     ds["gamma"] = ("mesh2d_nFaces", gamma)
+    ds["B_grid"] = ("mesh2d_nFaces", B_grid)
+    ds["wet_dry"] = ("mesh2d_nFaces", mesh.faces_inside)
     ds_g = xr.Dataset(ds).groupby("cols")
     depth = ds_g.map(
         _depth_profile_row,

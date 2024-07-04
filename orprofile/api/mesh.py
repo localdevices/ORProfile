@@ -238,15 +238,15 @@ class Mesh(object):
         return mesh
 
     def plot(
-            self,
-            ax=None,
-            tiles="GoogleTiles",
-            extent=None,
-            zoom_level=18,
-            tiles_kwargs={"style": "satellite"},
-            splines_kw={},
-            points_kw={},
-            plot_points=True
+        self,
+        ax=None,
+        tiles="GoogleTiles",
+        extent=None,
+        zoom_level=18,
+        tiles_kwargs={"style": "satellite"},
+        splines_kw={},
+        points_kw={},
+        plot_points=True
     ):
         """
         Plot available data in a geographically aware plot (cartopy)
