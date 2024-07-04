@@ -56,7 +56,7 @@ def depth_from_width(s, phi=0.25 * np.pi, h_m=10):
     return depth
 
 
-def depth_profile_left_right_parameters(s, gamma, h_m, A):
+def depth_profile_left_right_parameters(s, gamma, h_m, wet_dry, A):
     """
     Savenije eq. 12 applied with asymmetrical channel location, defined by parameter gamma.
 
@@ -73,6 +73,8 @@ def depth_profile_left_right_parameters(s, gamma, h_m, A):
         depth at deepest point
     A : float
         conveyance, measured as wetted cross sectional surface [m2]
+    wet_dry : bool vector-like
+        defines if location was wet (True) or dry (False) during surveying
 
     Returns
     -------
@@ -80,11 +82,13 @@ def depth_profile_left_right_parameters(s, gamma, h_m, A):
         depth over left to right bank side coordinates (negative numbers only)
 
     """
-    B = s[-1] - s[0]
+    s_sel = s[wet_dry]
+    B = s_sel[-1] - s_sel[0]
     frac_right = 1 / (1 + gamma)
-
+    # find distance from left side to nearest dhore pixel
+    s_min_wet = s_sel.min()
     # make coordinates with zero at the deepest point negative (positive) left (right) of deepest point
-    s_ordinal = s - (1 - frac_right) * B
+    s_ordinal = s - s_min_wet - (1 - frac_right) * B
     # estimate the average depth (eq. 15 in Savenije 2003)
     h = 2 * h_m / np.pi
     # solve B_r and B_l

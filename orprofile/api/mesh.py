@@ -3,16 +3,18 @@ import cartopy.crs as ccrs
 import copy
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import numpy as np
+import os
+import xarray as xr
+import xugrid as xu
+
 from meshkernel import (
     CurvilinearParameters,
     GeometryList,
     MeshKernel,
 )
-import numpy as np
-import os
-from shapely.geometry import Point, Polygon
-import xarray as xr
-import xugrid as xu
+from shapely.geometry import Point
+from typing import Optional
 
 from .. import geom
 
@@ -61,14 +63,14 @@ def map_func(row, f, ugrid, name="new", **kwargs):
 
 class Mesh(object):
     def __init__(
-            self,
-            spline_shape: gpd.GeoDataFrame,
-            n=10,
-            m=10,
-            points=None,
-            mesh_kernel=None, # if provided it will be set from mesh kernel, otherwise grown from the pars and splines
-            mesh2d=None, # if provided, set directly, otherwise converted from mesh_kernel if available
-            faces_inside=None
+        self,
+        spline_shape: gpd.GeoDataFrame,
+        n: int = 10,
+        m: int = 10,
+        points: Optional[gpd.GeoDataFrame, str] = None,
+        mesh_kernel = None, # if provided it will be set from mesh kernel, otherwise grown from the pars and splines
+        mesh2d=None, # if provided, set directly, otherwise converted from mesh_kernel if available
+        faces_inside=None
     ):
         self._mesh2d = None
         self.n = n
@@ -238,15 +240,15 @@ class Mesh(object):
         return mesh
 
     def plot(
-            self,
-            ax=None,
-            tiles="GoogleTiles",
-            extent=None,
-            zoom_level=18,
-            tiles_kwargs={"style": "satellite"},
-            splines_kw={},
-            points_kw={},
-            plot_points=True
+        self,
+        ax=None,
+        tiles="GoogleTiles",
+        extent=None,
+        zoom_level=18,
+        tiles_kwargs={"style": "satellite"},
+        splines_kw={},
+        points_kw={},
+        plot_points=True
     ):
         """
         Plot available data in a geographically aware plot (cartopy)
