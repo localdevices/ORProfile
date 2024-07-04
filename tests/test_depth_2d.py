@@ -16,7 +16,7 @@ def test_depth(mesh_, request):
     alpha = 20
     L = 150
     kappa = 0.5*np.pi
-    c = 0.8
+    c = 1
     A = 500
     ds = orprofile.api.depth_2d(mesh_, alpha, L, kappa, c, A)
     ds = ds.ugrid.to_crs(4326)

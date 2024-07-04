@@ -36,11 +36,11 @@ def mesh(splines):
 
 @fixture
 def mesh_high_res(splines):
-    return api.mesh.Mesh(splines, n=50, m=100)
+    return api.mesh.Mesh(splines, n=50, m=35)
 
 @fixture
 def mesh_extend(mesh):
-    mesh_ = mesh.add_rows(left=10, right=10)
+    mesh_ = mesh.add_rows(left=20, right=20)
     return mesh_
 
 
