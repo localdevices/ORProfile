@@ -14,13 +14,11 @@ from meshkernel import (
     MeshKernel,
 )
 from shapely.geometry import Point
-from typing import Optional
+from typing import Optional, Union
 
 from .. import geom
 
-
 __all__ = ["Mesh"]
-
 
 def get_dist(row):
     # get the centroid coordinates of each face
@@ -67,10 +65,9 @@ class Mesh(object):
         spline_shape: gpd.GeoDataFrame,
         n: int = 10,
         m: int = 10,
-        points: Optional[gpd.GeoDataFrame, str] = None,
-        mesh_kernel = None, # if provided it will be set from mesh kernel, otherwise grown from the pars and splines
-        mesh2d=None, # if provided, set directly, otherwise converted from mesh_kernel if available
-        faces_inside=None
+        points: Optional[Union[gpd.GeoDataFrame, str]] = None,
+        mesh_kernel: Optional[MeshKernel] = None, # if provided it will be set from mesh kernel, otherwise grown from the pars and splines
+        mesh2d: Optional[xu.Ugrid2d] = None, # if provided, set directly, otherwise converted from mesh_kernel if available
     ):
         self._mesh2d = None
         self.n = n

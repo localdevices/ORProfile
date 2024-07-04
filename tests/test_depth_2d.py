@@ -7,7 +7,7 @@ import pytest
 @pytest.mark.parametrize(
     "mesh_",
     [
-        # "mesh_high_res",
+        "mesh_high_res",
         "mesh_extend",
      ]
 )
