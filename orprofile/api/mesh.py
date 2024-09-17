@@ -1,21 +1,26 @@
+import cartopy.io.img_tiles as cimgt
+import cartopy.crs as ccrs
+import copy
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-
-import cartopy.io.img_tiles as cimgt
-import cartopy.crs as ccrs
-import geopandas as gpd
-from shapely.geometry import Point
+import xarray as xr
+import xugrid as xu
 
 from meshkernel import (
     CurvilinearParameters,
     GeometryList,
     MeshKernel,
 )
-import xarray as xr
-import xugrid as xu
+from shapely.geometry import Point
+from typing import Optional
+
+from .. import geom
+
 
 __all__ = ["Mesh"]
+
 
 def get_dist(row):
     # get the centroid coordinates of each face
@@ -28,12 +33,14 @@ def get_dist(row):
     # use the "cols" variable as a template
     return xr.DataArray(s, coords=row.coords)
 
+
 def get_xi(mesh):
     return mesh.map_rowcol_wise(
         get_dist,
         name="xi",
         rowcol="rows"
     )
+
 
 def get_yi(mesh):
     return mesh.map_rowcol_wise(
@@ -53,26 +60,35 @@ def map_func(row, f, ugrid, name="new", **kwargs):
 
 # specific function that computes something. This can be made by the user and applied
 
+
 class Mesh(object):
     def __init__(
-            self,
-            spline_shape: gpd.GeoDataFrame,
-            n=10,
-            m=10,
-            points=None
+        self,
+        spline_shape: gpd.GeoDataFrame,
+        n: int = 10,
+        m: int = 10,
+        points: Optional[gpd.GeoDataFrame, str] = None,
+        mesh_kernel = None, # if provided it will be set from mesh kernel, otherwise grown from the pars and splines
+        mesh2d=None, # if provided, set directly, otherwise converted from mesh_kernel if available
+        faces_inside=None
     ):
+        self._mesh2d = None
         self.n = n
         self.m = m
         self.splines = spline_shape
         if points is not None:
             self.points = points
+        self.set_mesh2d(mesh2d=mesh2d, mesh_kernel=mesh_kernel)
+
 
     def __repr__(self):
         info = {
             "n": self.n,
             "m": self.m,
             "crs": self.crs,
-            "points head": None if self.points is None else self.points["geometry"].head()
+            "points head": None if self.points is None else self.points["geometry"].head(),
+            "faces inside polygon": self.faces_inside.sum(),
+            "faces outside polygon": (~self.faces_inside).sum()
         }
         info_str = ""
         for k, v in info.items():
@@ -81,8 +97,28 @@ class Mesh(object):
 
 
     @property
+    def area(self):
+        return geom.crossing_lines_to_polygon(self.splines.geometry)
+
+
+    @property
+    def centroids(self):
+        return gpd.GeoSeries(self.mesh2d.to_shapely(dim="mesh2d_nFaces")).centroid
+
+    @property
     def crs(self):
         return self.splines.crs
+
+
+    @property
+    def faces_inside(self):
+        return self.centroids.within(self.area.values[0][0])
+
+
+    @property
+    def faces_outside(self):
+        return ~self.centroids.within(self.area.values[0][0])
+
 
     @property
     def points(self):
@@ -160,27 +196,6 @@ class Mesh(object):
         else:
             print("Splines are not crossing each other properly, ensure each spline crosses at least 2 other splines")
 
-
-    @property
-    def mesh_kernel(self):
-        """
-
-        Returns
-        -------
-        meshkernel.MeshKernel
-            contains the curvilinear grid based on defined splines and row/column parameters
-        """
-        mk = MeshKernel()
-        curvilinear_parameters = CurvilinearParameters()
-        curvilinear_parameters.n_refinement = self.n
-        curvilinear_parameters.m_refinement = self.m
-        mk.curvilinear_compute_transfinite_from_splines(
-            self.splines_mesh, curvilinear_parameters
-        )
-        mk.curvilinear_convert_to_mesh2d()  #.curvilineargrid_get()
-        return mk
-
-
     @property
     def mesh2d(self):
         """
@@ -189,20 +204,51 @@ class Mesh(object):
         -------
         xu compatible 2D grid
         """
-        grid = self.mesh_kernel.mesh2d_get()
-        return xu.Ugrid2d.from_meshkernel(grid, crs=self.crs)
+        if hasattr(self, "_mesh2d"):
+            return self._mesh2d
 
+    @property
+    def rowscols(self):
+        rows = np.repeat([np.arange(self.n)], self.m, axis=0).flatten()
+        columns = np.repeat(np.arange(self.m), self.n)
+        return rows, columns
+
+    def set_mesh2d(self, mesh2d=None, mesh_kernel=None):
+        if mesh2d:
+            self._mesh2d = mesh2d
+            return
+        # if no mesh2d, then check if mesh kernel exists, if not grow it from splines
+        if not mesh_kernel:
+            mesh_kernel = MeshKernel()
+            curvilinear_parameters = CurvilinearParameters()
+            curvilinear_parameters.n_refinement = self.n
+            curvilinear_parameters.m_refinement = self.m
+            mesh_kernel.curvilinear_compute_transfinite_from_splines(
+                self.splines_mesh, curvilinear_parameters
+            )
+            mesh_kernel.curvilinear_convert_to_mesh2d()  #.curvilineargrid_get()
+        grid = mesh_kernel.mesh2d_get()
+        self._mesh2d = xu.Ugrid2d.from_meshkernel(grid, crs=self.crs)
+
+    def add_rows(self, left=0, right=0):
+        mesh = copy.copy(self)
+        for n in range(left):
+            mesh = mesh_new_row(mesh, side="left")
+        for n in range(right):
+            mesh = mesh_new_row(mesh, side="right")
+        mesh._mesh2d.crs = self.crs
+        return mesh
 
     def plot(
-            self,
-            ax=None,
-            tiles="GoogleTiles",
-            extent=None,
-            zoom_level=18,
-            tiles_kwargs={"style": "satellite"},
-            splines_kw={},
-            points_kw={},
-            plot_points=True
+        self,
+        ax=None,
+        tiles="GoogleTiles",
+        extent=None,
+        zoom_level=18,
+        tiles_kwargs={"style": "satellite"},
+        splines_kw={},
+        points_kw={},
+        plot_points=True
     ):
         """
         Plot available data in a geographically aware plot (cartopy)
@@ -235,11 +281,14 @@ class Mesh(object):
         if extent is not None:
             ax.set_extent(extent, crs=ccrs.PlateCarree())
         m = self.mesh2d.to_crs(crs.to_wkt())
-        m.plot(ax=ax, label="mesh", zorder=2, alpha=0.5)
+        msel = m.isel(mesh2d_nFaces=self.faces_inside.values)
+        if len(msel.to_dataset().mesh2d_nFaces) > 0:
+            msel.plot(ax=ax, label="mesh cells inside splines", zorder=2, alpha=0.5)
+        msel = m.isel(mesh2d_nFaces=~self.faces_inside.values)
+        if len(msel.to_dataset().mesh2d_nFaces) > 0:
+            msel.plot(ax=ax, label="mesh cells outside splines", zorder=2, alpha=0.5, color="#FF9900")
         if tiles is not None:
             ax.add_image(tiler, zoom_level, zorder=1)
-        # now add the gdf
-        # self.mesh_kernel.plot_edges(ax, color="r", transform=ccrs.epsg(self.splines.crs.to_epsg()), label="mesh edges")
         self.splines.plot(
             ax=ax,
             transform=ccrs.epsg(self.splines.crs.to_epsg()),
@@ -263,7 +312,6 @@ class Mesh(object):
             )
         ax.legend()
         return ax
-
 
     def _get_empty_ds(self):
         """
@@ -304,7 +352,6 @@ class Mesh(object):
 
 
         return ds
-
 
     def _get_index_da(self):
         """
@@ -359,7 +406,6 @@ class Mesh(object):
             grid=self.mesh2d
         )
 
-
     def read_points(self, fn, crs=None):
         """
         Read a set of surveyed points. These should be contained in the point geometry of the read file
@@ -388,3 +434,98 @@ class Mesh(object):
             gdf.set_crs(crs)
         gdf["depth"] = gdf.geometry.z
         self.points = gdf
+
+
+def mesh_new_row(mesh, side="left"):
+    mesh_new = copy.deepcopy(mesh)
+    mesh2d = mesh.mesh2d.to_dataset()
+    rows, _ = mesh.rowscols
+    if side == "left":
+        bank_idx = rows == rows.min()
+        first_extend_idx = [3, 0]
+        extend_idx = [2, 1]
+    else:
+        bank_idx = rows == rows.max()
+        first_extend_idx = [0, 3]
+        extend_idx = [1, 2]
+    mesh2d_faces_row = mesh2d["mesh2d_face_nodes"][bank_idx]
+    new_x, new_y = [], []
+    new_edge = []
+    cur_nr_nodes = len(mesh2d["mesh2d_node_x"])
+    for n, cell in enumerate(mesh2d_faces_row):
+        x_sel = mesh2d["mesh2d_node_x"][cell].values
+        y_sel = mesh2d["mesh2d_node_y"][cell].values
+        idx_sel = mesh2d["mesh2d_nNodes"][cell].values
+
+        if n == 0:
+            # select the nodes that lie on the edge of the domain
+            x1, x2 = x_sel[first_extend_idx]
+            y1, y2 = y_sel[first_extend_idx]
+            _, idx_edge1 = idx_sel[first_extend_idx]
+            new_x.append(x2 - (x1 - x2))
+            new_y.append(y2 - (y1 - y2))
+            new_edge.append([idx_edge1, cur_nr_nodes])
+            cur_nr_nodes += 1
+        x1, x2 = x_sel[extend_idx]
+        y1, y2 = y_sel[extend_idx]
+        _, idx_edge2 = idx_sel[extend_idx]
+        new_x.append(x2 - (x1 - x2))
+        new_y.append(y2 - (y1 - y2))
+        new_edge.append([idx_edge2, cur_nr_nodes])
+        # connect hanging nodes
+        new_edge.append([cur_nr_nodes - 1, cur_nr_nodes])
+        # make the last edge the first for the next cell
+        idx_edge1 = copy.deepcopy(idx_edge2)
+        cur_nr_nodes += 1
+    # now generate the new nodes and faces
+    x = np.concatenate([mesh2d["mesh2d_node_x"].values, new_x])
+    y = np.concatenate([mesh2d["mesh2d_node_y"].values, new_y])
+    if side == "left":
+        new_faces = np.vstack(
+            [
+                np.arange(len(mesh2d_faces_row)) + len(mesh2d["mesh2d_node_x"]),
+                np.arange(len(mesh2d_faces_row)) + 1 + len(mesh2d["mesh2d_node_x"]),
+                mesh2d_faces_row.values[:, 1],
+                mesh2d_faces_row.values[:, 0],
+            ]
+        ).T
+        insert_idx = np.where(bank_idx)[0]
+    elif side == "right":
+        new_faces = np.vstack(
+            [
+                mesh2d_faces_row.values[:, 3],
+                mesh2d_faces_row.values[:, 2],
+                np.arange(len(mesh2d_faces_row)) + 1 + len(mesh2d["mesh2d_node_x"]),
+                np.arange(len(mesh2d_faces_row)) + len(mesh2d["mesh2d_node_x"]),
+            ]
+        ).T
+        insert_idx = np.where(bank_idx)[0] + 1
+
+    faces = np.insert(mesh2d["mesh2d_face_nodes"], insert_idx, new_faces, axis=0)
+
+    edges = np.vstack([mesh2d["mesh2d_edge_nodes"], new_edge])
+    # now rearrange the mesh
+    del mesh2d["mesh2d_node_x"]
+    del mesh2d["mesh2d_node_y"]
+    mesh2d["mesh2d_nNodes"] = np.arange(len(x), dtype=np.int64)
+    mesh2d["mesh2d_node_x"] = "mesh2d_nNodes", x
+    mesh2d["mesh2d_node_y"] = "mesh2d_nNodes", y
+    mesh2d["mesh2d_node_x"].attrs = mesh.mesh2d.to_dataset()["mesh2d_node_x"].attrs
+    mesh2d["mesh2d_node_y"].attrs = mesh.mesh2d.to_dataset()["mesh2d_node_y"].attrs
+    # first remove the original faces
+
+    del mesh2d["mesh2d_face_nodes"]
+    # then replace the number of faces with the new length
+    mesh2d["mesh2d_nFaces"] = np.arange(len(faces), dtype=np.int64)
+    mesh2d["mesh2d_nMax_face_nodes"] = np.arange(4, dtype=np.int64)
+    # now reinsert the new list of faces
+    mesh2d["mesh2d_face_nodes"] = ("mesh2d_nFaces", "mesh2d_nMax_face_nodes"), faces.data
+    # do the same for the edges
+    del mesh2d["mesh2d_edge_nodes"]
+    mesh2d["mesh2d_nEdges"] = np.arange(len(edges), dtype=np.int64)
+    mesh2d["mesh2d_edge_nodes"] = ("mesh2d_nEdges", "two"), edges
+    new_mesh = xu.Ugrid2d.from_dataset(mesh2d)
+    mesh_new._mesh2d = new_mesh
+    # increase amount of rows
+    mesh_new.n += 1
+    return mesh_new
